@@ -103,32 +103,40 @@ void Encoder(char* uncoded, char* coded) {
         }
     }
     
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 8; i++) {//
         data[i*15] = data[i*15 +2] ^ data[i*15 +4] ^ data[i*15 +6] ^ data[i*15 + 8] ^ data[i * 15 + 10] ^ data[i * 15 + 12] ^ data[i * 15 + 14];
         data[(i*15) + 1] = data[i * 15 + 2] ^ data[i * 15 + 5] ^ data[i * 15 + 6] ^ data[i * 15 + 9] ^ data[i * 15 + 10] ^ data[i * 15 + 13] ^ data[i * 15 + 14];
         data[(i * 15) + 3] = data[i * 15 + 4] ^ data[i * 15 + 5] ^ data[i * 15 + 6] ^ data[i * 15 + 11] ^ data[i * 15 + 12] ^ data[i * 15 + 13] ^ data[i * 15 + 14];
         data[(i * 15) + 7] = data[i * 15 + 8] ^ data[i * 15 + 9] ^ data[i * 15 + 10] ^ data[i * 15 + 11] ^ data[i * 15 + 12] ^ data[i * 15 + 13] ^ data[i * 15 + 14];
     }
     
-    
-    for (i = 0; i < 15; i++) {//coded bits into 15 char string
+    for (i = 0; i < 15; i++) {//turn coded bits into 15 char string
+        coded[i] = 0;
         for (j = 0; j < 8; j++) {
-
-            coded[i] |= (data[j] == '1') << (7 - j);
-
+            coded[i] = coded[i] * 2;
+            coded[i] += data[i * 8 + j];
         }
+
     }
+
+    
 }
+
+
 
 void Decoder(char* uncoded, char* coded) {
     int filter = 128, i , j, k, k1, k2, k3, k4;
     char bits[120], data_bits[88];
 
-    for (int i = 0; i < 8; i++) {//extracting 15bits per tour (bit number i of each byte)
-        for (int j = 0; j < 15; j++) bits[i * 15 + j] = ((coded[j] & filter) == 0) ? 0 : 1;
-        filter /= 2;
+    for (int i = 0; i < 15; i++) {//extracting 15bits per tour (bit number i of each byte)
+        filter = 128;
+        for (int j = 0; j < 8; j++) {
+            bits[i * 8 + j] = ((coded[i] & filter) == 0) ? 0 : 1;
+            filter /= 2;
+        }
     }
-    for(int i=0;i<8;i++){// checking mistake
+
+    for(int i=0;i<8;i++){// checking mistakes
         do{
             k1=bits[i*15]^bits[i*15+2]^bits[i*15+4]^bits[i*15+6]^bits[i*15+8]^bits[i*15+10]^bits[i*15+12]^bits[i*15+14];
             k2=bits[i*15+1]^bits[i*15+2]^bits[i*15+5]^bits[i*15+6]^bits[i*15+9]^bits[i*15+10]^bits[i*15+13]^bits[i*15+14];
@@ -157,7 +165,7 @@ void Decoder(char* uncoded, char* coded) {
 
     for (int i = 0; i < 11; i++) {// writting dataout
         for (int j = 0; j < 8; j++) {
-            uncoded[i] |= data_bits[j * 11 + i] * filter;
+            uncoded[i] |= data_bits[i * 8 + j] * filter;
             filter /= 2;
         }
         filter = 128;
@@ -171,13 +179,13 @@ void Decoder(char* uncoded, char* coded) {
 
 int main(void)
 {
-    char eight_uncoded_words[12] = "8ka/5a6mbda", eight_coded_words[16];
+    unsigned char eight_uncoded_words[12] = "8ka/5a6mbda", eight_coded_words[16];
     Encoder (eight_uncoded_words, eight_coded_words);
-    //for (int i = 0; i < 15; i++)
-    //    printf("%d\n", (int)eight_coded_words[i]);
-    //printf("%s\n", eight_coded_words);
+    for (int i = 0; i < 15; i++)
+        printf("%d\n", (char*)eight_coded_words[i]);
+    printf("%s\n", eight_coded_words);
     Decoder(eight_uncoded_words, eight_coded_words);
-    //printf("%s\n", eight_uncoded_words);
+    printf("%s\n", eight_uncoded_words);
     return 0;
 }
 
