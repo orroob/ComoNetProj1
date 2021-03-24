@@ -58,11 +58,16 @@ int main(int argc, char* argv[]){
 
 	printf("Socket created.\n");
 
-	// Filling server information 
+	// Filling client information 
 	struct sockaddr_in client_addr, server_addr;
 	client_addr.sin_family = AF_INET;
 	client_addr.sin_port = htons(atoi(Lport));
 	client_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	
+	// Filling server information 
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(atoi(R_port));
+	server_addr.sin_addr.s_addr = inet_addr(R_ip);
 
 	//Bind
 	if (bind(client_s, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
@@ -75,7 +80,7 @@ int main(int argc, char* argv[]){
 	// Setup timeval variable
 	struct timeval timeout;
 	struct fd_set fds;
-	int  retval, client_addrss_len = sizeof(server_addr), i = 0 ;
+	int  retval, client_addrss_len = sizeof(client_addr), i = 0 ;
 	char dec_buff[BUFF_SIZE] = { 0 };
 
 	while (1)
@@ -103,12 +108,18 @@ int main(int argc, char* argv[]){
 				i++;
 			}
 
-			/*if (FD_ISSET(server_s, &fds))
+			if (FD_ISSET(server_s, &fds))
 			{
+
 				printf("Reciver query incoming...\n");
+				if (sendto(server_s, buffer, strlen(buffer), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR)
+				{
+					printf("sendto() failed with error code : %d", WSAGetLastError());
+					exit(EXIT_FAILURE);
+				}
 				// call recv()/read() to read the datagram ...
 			}
-			*/
+			
 
 			// check connected TCP clients, if needed...
 		}
