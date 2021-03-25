@@ -12,25 +12,22 @@
 #include <conio.h>
 #include "C:\Users\user1\source\repos\Noisy Channel\Noisy Channel\hamming.c" 
 
-void decode(char* buffer, char* dec_buffer, FILE* f)
+int decode(char* buffer, int blen , FILE* f)
 {
 	/*
 		Receives encoded (char*) buffer and a (FILE*) f, and writes to the file the decoded data from the buffer
 	*/
-
-	int blen = BUFF_SIZE-1;
+	int errcount = 0;
 	char decoded[12] = { 0 };
+	int a = strlen(buffer);
 	while (blen > 0) {
-		Decoder(decoded, buffer);
+		errcount += Decoder(decoded, buffer);
 		//strncat(dec_buffer, decoded, 12);
-		printf(decoded);
 		fwrite(decoded, 11, 1, f);
 		blen -= 15;
 		buffer += 15;
 	}
-	//char *s = "end of pkt ====================\n";
-	//fwrite(s, 1, strlen(s), f);
-	return;
+	return errcount;
 }
 
 int main(int argc, char* argv[])
@@ -73,8 +70,6 @@ int main(int argc, char* argv[])
 	// Setup timeval variable
 	struct timeval timeout;
 	struct fd_set fds;
-	timeout.tv_sec = 3;
-	timeout.tv_usec = 0;
 
 	//open output file 
 	FILE* f;
@@ -87,11 +82,15 @@ int main(int argc, char* argv[])
 	printf("File opened successfully\n");
 
 	int  retval, buffer_len;
-	char dec_buff[1100] = { 0 }, buffer[BUFF_SIZE] = { 0 };
+	unsigned char dec_buff[1100] = { 0 }, buffer[BUFF_SIZE] = { 0 };
 	char end_str[] = "end\n", str[10] = { 0 };
 
 	while (1)
 	{
+
+		timeout.tv_sec = 3;
+		timeout.tv_usec = 0;
+
 		//set descriptors
 		FD_ZERO(&fds);
 		FD_SET(channel_s, &fds);
@@ -105,11 +104,6 @@ int main(int argc, char* argv[])
 			// check errno/WSAGetLastError(), call perror(), etc ...
 		}
 
-		if (retval == 0)
-		{//timeout occured
-			continue;
-		}
-
 		if (retval > 0)
 		{
 			if (FD_ISSET(channel_s, &fds))
@@ -121,8 +115,12 @@ int main(int argc, char* argv[])
 				//Receive data from the channel
 				buffer_len = recvfrom(channel_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&channel_addr, &channel_addrss_len);
 
+				for (int i = buffer_len; i < BUFF_SIZE-1; i++)
+				{
+					buffer[i] = '\0';
+				}
 				//decode message and write it to the output file
-				decode(buffer, dec_buff, f);
+				printf("%d\n" ,decode(buffer, buffer_len, f));
 			}
 		}
 
@@ -148,13 +146,17 @@ int main(int argc, char* argv[])
 
 
 			//close connection with the channel
-			close(channel_s);
-
+			closesocket(channel_s);
 			//close the output file
 			fclose(f);
 
 			//finish execution
 			break;
+		}
+
+		if (retval == 0)
+		{//timeout occured
+			continue;
 		}
 	}
 	return 0;
