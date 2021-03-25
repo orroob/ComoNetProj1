@@ -50,7 +50,7 @@ void Noise_B(char* buffer, int seed, double probability)
 	int MAX_P = 1 / probability;
 	int random, mask = 1;
 	srand(seed);
-
+	
 	for (int i = 0; i < 1500; i++)
 	{
 		mask = 1;
@@ -58,17 +58,16 @@ void Noise_B(char* buffer, int seed, double probability)
 		{
 			mask *= 2;
 			random = rand();
+			if (pow(2, 16) == MAX_P)
+			{
+				if (rand() % 2 == 0)
+				{
+					continue;
+				}
+			}
 			if ((random % MAX_P) == 0)
 			{
-				if (pow(2, 16) == MAX_P)
-				{
-					if (rand() % 2 == 0)
-					{
-						continue;
-					}
-
-					buffer[i] = buffer[i] ^ mask;
-				}
+				buffer[i] = buffer[i] ^ mask;
 			}
 		}
 
@@ -87,10 +86,9 @@ int main(int argc, char* argv[])
 		argv[5] - random seed
 	*/
 
-	char buffer[1500] = { 0 };
+	unsigned char buffer[BUFF_SIZE + 2] = { 0 };
 	int buffer_len;
 	double probability = atoi(argv[4]) / (pow(2, 16));
-	char dec_buff[BUFF_SIZE] = { 0 };
 
 	//init winsock
 	WSADATA wsaData;
@@ -172,14 +170,18 @@ int main(int argc, char* argv[])
 				printf("client message received\n");
 				
 				//receive data from client
-				buffer_len = recvfrom(client_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&client_addr, &client_addrss_len);
+				buffer_len = recvfrom(client_s, buffer, BUFF_SIZE + 2, 0, (struct sockaddr*)&client_addr, &client_addrss_len);
 				
+				for (int i = buffer_len; i < BUFF_SIZE ; i++)
+				{
+					buffer[i] = '\0';
+				}
 				//add noise to the data before sending it to the server
-				Noise_B(buffer, argv[5], probability);
+				//Noise_B(buffer, argv[5], probability);
 
 				//Sending the processed data to the server
 				printf("Sending to server\n");
-				if (sendto(server_s, buffer, strlen(buffer), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR)
+				if (sendto(server_s, buffer, buffer_len, 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR)
 				{
 					printf("sendto() failed with error code : %d", WSAGetLastError());
 					exit(EXIT_FAILURE);
@@ -195,11 +197,11 @@ int main(int argc, char* argv[])
 				printf("ack received\n");
 				
 				//close connection with the server
-				close(server_s);
+				closesocket(server_s);
 
 				//send Ack to the client
 				strcpy(buffer, "Ack");
-				if (sendto(client_s, buffer, strlen(buffer), 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+				if (sendto(client_s, buffer, 20 , 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
 				{
 					printf("sendto() failed with error code : %d", WSAGetLastError());
 					exit(EXIT_FAILURE);
@@ -209,7 +211,7 @@ int main(int argc, char* argv[])
 
 
 				//close connection with the client
-				close(client_s);
+				closesocket(client_s);
 
 				//finish execution
 				break;
