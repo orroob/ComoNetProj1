@@ -21,8 +21,8 @@ void Encoder(char* uncoded, char* coded) {
         for (j = 0; j < 8; j++) {
             if (data[i * 8 + j + skip] == -1) skip++;            
             if (data[i * 8 + j + skip] == -1) skip++;
-            data[i * 8 + j + skip] = uncoded[i] >>(7 - j);
-            data[i * 8 + j + skip] = data[i * 8 + j + skip] % 2;
+            data[i * 8 + j + skip] = abs((char)((int)(uncoded_word[i]>>(7-j)))%2);
+           
         }
     }
     
@@ -52,6 +52,7 @@ int Decoder(char* uncoded, char* coded) {
     char bits[120], data_bits[88];
 
     for (int i = 0; i < 15; i++) {//extracting 15bits per tour (bit number i of each byte)
+	if (coded[i] < 0) coded[i] = (int)coded[i] + 256;
         filter = 128;
         for (int j = 0; j < 8; j++) {
             bits[i * 8 + j] = ((coded[i] & filter) == 0) ? 0 : 1;
