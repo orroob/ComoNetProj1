@@ -93,7 +93,7 @@ int Decoder(char* uncoded, char* coded) {
 
     for (int i = 0; i < 11; i++) {// writting dataout
         for (int j = 0; j < 8; j++) {
-            uncoded[i] |= data_bits[i * 8 + j] * filter;
+            uncoded[i] |= abs(data_bits[i * 8 + j] * filter);
             filter >> 1;
         }
         filter = 128;
