@@ -21,7 +21,7 @@ void Encoder(char* uncoded, char* coded) {
         for (j = 0; j < 8; j++) {
             if (data[i * 8 + j + skip] == -1) skip++;            
             if (data[i * 8 + j + skip] == -1) skip++;
-            data[i * 8 + j + skip] = abs((char)((int)(uncoded_word[i]>>(7-j)))%2);
+            data[i * 8 + j + skip] = abs((char)((int)(uncoded[i]>>(7-j)))%2);
            
         }
     }
@@ -93,11 +93,12 @@ int Decoder(char* uncoded, char* coded) {
 
     for (int i = 0; i < 11; i++) {// writting dataout
         for (int j = 0; j < 8; j++) {
-            uncoded[i] |= abs(data_bits[i * 8 + j] * filter);
-            filter >> 1;
+            uncoded[i] |= data_bits[i * 8 + j] * filter;
+            filter /= 2;
         }
         filter = 128;
     }
 	return err_count;
 }
+
     
