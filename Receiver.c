@@ -31,7 +31,9 @@ void checkArgs(int argc, char* argv[])
 int decode(char* buffer, int blen , FILE* f)
 {
 	/*
-		Receives encoded (char*) buffer and a (FILE*) f, and writes to the file the decoded data from the buffer
+		Input: encoded (char*) buffer and a (FILE*) f.
+		Functionality: decodes the data from the buffer and writes to the given file.
+		Return value: number of errors (flipped bits) found in the buffer. 
 	*/
 
 	int errcount = 0;
