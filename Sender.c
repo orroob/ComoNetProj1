@@ -1,6 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-#define BUFF_SIZE 1502
+#define BUFF_SIZE 1501
 
 #include <stdio.h> 
 #include <stdlib.h> 
@@ -8,20 +8,19 @@
 #include <WinSock2.h>
 #include <math.h>
 #include <stdbool.h>
-#include "C:\Users\user1\source\repos\Noisy Channel\Noisy Channel\hamming.c" 
+#include "hamming.c" 
 
 
 int main(int argc, char* argv[])
 {
-/*
-	Arguments:
-	argv[1] - channel IP
-	argv[2] - channel port
-	argv[3] - input file name
-*/
-	int last_pckt;
+//read arguments
+	char IP[20], port[40], f_name[50];
+	strcpy(IP, argv[1]);
+	strcpy(port, argv[2]);
+	strcpy(f_name, argv[3]);
+
 	FILE* f = NULL;
-	f = fopen(argv[3], "rb");
+	f = fopen(f_name, "rb");
 	if (f == NULL)
 	{
 		printf("File error. Coudn't open file\n");// CHECKING IF OPENED SUCCSESSFULLY
@@ -29,164 +28,80 @@ int main(int argc, char* argv[])
 	}
 	printf("File opened successfully\n");
 
-	// Init winsock
+//init winsock
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != NO_ERROR)
 		printf("Error at WSAStartup()\n");
 
-	// Create and init socket
-	SOCKET channel_s;
-	if ((channel_s = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+//create socket
+	SOCKET client_s;
+
+	if ((client_s = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
 		printf("Could not create socket : %d", WSAGetLastError());
 	}
+
 	printf("Socket created.\n");
 
-	// Filling channel information 
+// Filling server information 
 	struct sockaddr_in client_addr;
 	client_addr.sin_family = AF_INET;
-	client_addr.sin_port = htons(atoi(argv[2]));
-	client_addr.sin_addr.s_addr = inet_addr(argv[1]);
-	int client_addr_len = sizeof(client_addr);
+	client_addr.sin_port = htons(atoi(port));
+	client_addr.sin_addr.s_addr = inet_addr(IP);//INADDR_ANY;
 
-	// Setup timeval variable
-	struct timeval timeout;
-	struct fd_set fds;
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 0.5;
+//connect to the channel
+	//int status = connect(client_s, (SOCKADDR*)&client_addr, sizeof(client_addr));
 
-	unsigned char chr[12] = { 0 }, coded_chr[16] = { 0 }, buffer[BUFF_SIZE] = { 0 };
-	int  retval, pckt_size = 0, buffer_len;
-	int flag = 0;
 
+	char chr[12] = { 0 }, coded_chr[16] = { 0 }, buffer[BUFF_SIZE] = { 0 };
+	int pckt_size = 0;
+	//buffer = calloc(BUFF_SIZE, sizeof(char*));
+	if (buffer == NULL)
+	{
+		printf("Memory allocation failed\n");
+	}
+
+	int i = 0;
 	while (fread(chr, 1, 11, f))
 	{
-
-		// Check if Ack has been sent from the channel. if so, close the connection, the file and finish execution:
-		//set descriptors
-		FD_ZERO(&fds);
-		FD_SET(channel_s, &fds);
-
-		//wait for data to be sent by the channel
-		retval = select(channel_s + 1, &fds, NULL, NULL, &timeout);
-		if (retval < 0)
-		{//error occured
-
-			// check errno/WSAGetLastError(), call perror(), etc ...
-		}
-
-		if (retval > 0)
-		{
-			if (FD_ISSET(channel_s, &fds))
-			{//data was received from the channel
-			//we will process it (decode) and write it to the output file
-
-				printf("Sender requesting to connect...\n");
-
-				//Receive data from the channel
-				buffer_len = recvfrom(channel_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&client_addr, &client_addr_len);
-				//======(we receive the message from the address to which we sent our data to - check for errors)=======================
-
-				//===present the data from Ack before finishing execution =======
-
-				//close connection with the channel
-				closesocket(channel_s);
-
-				//close intput file
-				fclose(f);
-
-				flag = 1;
-
-				//finish execution
-				break;
-			}
-		}
-
-		//encode message and insert it to the packet
 		Encoder(chr, coded_chr);
 		strncpy(buffer + pckt_size, coded_chr, 15);
 		pckt_size += 15;
-
-		if (pckt_size == BUFF_SIZE-2)
-		{//packet is ready to be sent
-
-			Sleep(10);
-			//send data to channel
-			if (sendto(channel_s, buffer, pckt_size, 0, (struct sockaddr *) &client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+		//printf("%d\n", strlen(buffer));
+		if (pckt_size == BUFF_SIZE-1)
+		{
+			printf("sending packet num %d\n", i);
+			i++;
+			//send data
+			if (sendto(client_s, buffer, strlen(buffer), 0, (struct sockaddr *) &client_addr, sizeof(client_addr)) == SOCKET_ERROR)
 			{
 				printf("sendto() failed with error code : %d", WSAGetLastError());
 				exit(EXIT_FAILURE);
 			}
 
-			//clean buffer
 			for (int i = 0; i < BUFF_SIZE; i++)
 			{
 				buffer[i] = 0;
 			}
 			pckt_size = 0;
 		}
+		//printf("%d %s\n", (char*)coded_chr, buffer);
+		
 	}
-
-	if (pckt_size != BUFF_SIZE-2)
+	if (pckt_size != BUFF_SIZE-1)
 	{
-		last_pckt = pckt_size;
-		while (pckt_size!= BUFF_SIZE - 1)
-		{
-			buffer[pckt_size] = '\0';
-			pckt_size++;
-		}
+		buffer[pckt_size] = '\0';
 		//send data
-		if (sendto(channel_s, buffer, last_pckt, 0, (struct sockaddr *) &client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+		if (sendto(client_s, buffer, strlen(buffer), 0, (struct sockaddr *) &client_addr, sizeof(client_addr)) == SOCKET_ERROR)
 		{
 			printf("sendto() failed with error code : %d", WSAGetLastError());
 			exit(EXIT_FAILURE);
 		}
+		printf("sending packet num %d\n", i);
 	}
+	closesocket(client_s);
+	fclose(f);
 
-	if (!flag)
-	{
-		while (1)
-		{// Check if Ack has been sent from the channel. if so, close the connection, the file and finish execution:
-		//set descriptors
-			FD_ZERO(&fds);
-			FD_SET(channel_s, &fds);
-
-			//wait for data to be sent by the channel
-			retval = select(channel_s + 1, &fds, NULL, NULL, &timeout);
-			if (retval < 0)
-			{//error occured
-
-				// check errno/WSAGetLastError(), call perror(), etc ...
-			}
-
-			if (retval > 0)
-			{
-				if (FD_ISSET(channel_s, &fds))
-				{//data was received from the channel
-				//we will process it (decode) and write it to the output file
-
-					printf("Sender requesting to connect...\n");
-
-					//Receive data from the channel
-					buffer_len = recvfrom(channel_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&client_addr, &client_addr_len);
-					//======(we receive the message from the address to which we sent our data to - check for errors)=======================
-
-					//===present the data from Ack before finishing execution =======
-
-					//close connection with the channel
-					closesocket(channel_s);
-
-					//close intput file
-					fclose(f);
-
-					flag = 1;
-
-					//finish execution
-					break;
-				}
-			}
-		}
-	}
 	return 0;
 }
