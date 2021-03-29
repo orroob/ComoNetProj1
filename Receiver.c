@@ -10,13 +10,30 @@
 #include <math.h>
 #include <stdbool.h>
 #include <conio.h>
-#include "C:\Users\user1\source\repos\Noisy Channel\Noisy Channel\hamming.c" 
+#include "hamming.c" 
+
+void checkArgs(int argc, char* argv[])
+{
+	if (argc < 2)
+	{
+		printf("too few arguments\n");
+		exit(1);
+	}
+
+	if (atoi(argv[1]) == 0)
+	{
+		printf("Invalid port\n");
+		exit(1);
+	}
+}
+
 
 int decode(char* buffer, int blen , FILE* f)
 {
 	/*
 		Receives encoded (char*) buffer and a (FILE*) f, and writes to the file the decoded data from the buffer
 	*/
+
 	int errcount = 0;
 	char decoded[12] = { 0 };
 	int a = strlen(buffer);
@@ -38,6 +55,9 @@ int main(int argc, char* argv[])
 		argv[2] - file name
 	*/
 
+	//Check if the arguments are valid
+	checkArgs(argc, argv);
+
 	//Init winsock
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -50,8 +70,7 @@ int main(int argc, char* argv[])
 	{
 		printf("Could not create socket : %d", WSAGetLastError());
 	}
-	printf("Socket created.\n");
-
+	
 	//Filling channel information
 	struct sockaddr_in channel_addr;
 	channel_addr.sin_family = AF_INET;
@@ -65,7 +84,6 @@ int main(int argc, char* argv[])
 		printf("Bind failed with error code : %d", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
-	puts("Bind done");
 
 	// Setup timeval variable
 	struct timeval timeout;
@@ -79,11 +97,14 @@ int main(int argc, char* argv[])
 		printf("File error. Coudn't open file\n");// CHECKING IF OPENED SUCCSESSFULLY
 		return -1;
 	}
-	printf("File opened successfully\n");
 
-	int  retval, buffer_len;
+	int  retval, buffer_len, err_num = 0, received = 0;
 	unsigned char dec_buff[1100] = { 0 }, buffer[BUFF_SIZE] = { 0 };
-	char end_str[] = "end\n", str[10] = { 0 };
+	char end_str[] = "end\n", str[4] = { 0 }, output[200];
+
+	
+
+	printf("Type 'End' when done\n");
 
 	while (1)
 	{
@@ -110,48 +131,48 @@ int main(int argc, char* argv[])
 			{//data was received from the channel
 			//we will process it (decode) and write it to the output file
 
-				printf("Sender requesting to connect...\n");
-
 				//Receive data from the channel
 				buffer_len = recvfrom(channel_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&channel_addr, &channel_addrss_len);
+				
+				received += buffer_len;
 
 				for (int i = buffer_len; i < BUFF_SIZE-1; i++)
 				{
 					buffer[i] = '\0';
 				}
+
 				//decode message and write it to the output file
-				printf("%d\n" ,decode(buffer, buffer_len, f));
+				err_num += decode(buffer, buffer_len, f);
 			}
 		}
 
 		if (_kbhit())
 		{//check if 'end' was pressed to stdin. if so, send Ack to the channel, close the connection, and close the output file.
 
-			/*strcat(str, gets());
-			if (strcmp(str, end_str))
+			fgets(str, 4, stdin);
+			if ((!strcmp(str, "end")) || (!strcmp(str, "END")) || (!strcmp(str, "End")))
 			{
-				printf("end\n");
+				
+				//present the data before finishing execution
+				sprintf(output, "received: %d bytes\nwrote: %d bytes\ndetected and corrected %d errors\n", received, received * 1100 / 1500, err_num);
+				write(2, output, strlen(output));
+
+				//send Ack to the channel
+				
+				if (sendto(channel_s, output, strlen(output), 0, (struct sockaddr *) &channel_addr, sizeof(channel_addr)) == SOCKET_ERROR)
+				{
+					printf("sendto() failed with error code : %d", WSAGetLastError());
+					exit(EXIT_FAILURE);
+				}
+
+				//close connection with the channel
+				closesocket(channel_s);
+				//close the output file
+				fclose(f);
+
+				//finish execution
 				break;
-			}*/
-			
-			//send Ack to the channel
-			strcpy(buffer, "ack");
-			if (sendto(channel_s, buffer, BUFF_SIZE, 0, (struct sockaddr *) &channel_addr, sizeof(channel_addr)) == SOCKET_ERROR)
-			{
-				printf("sendto() failed with error code : %d", WSAGetLastError());
-				exit(EXIT_FAILURE);
-			}
-
-			//=== present the data before finishing execution =======
-
-
-			//close connection with the channel
-			closesocket(channel_s);
-			//close the output file
-			fclose(f);
-
-			//finish execution
-			break;
+			}			
 		}
 
 		if (retval == 0)
