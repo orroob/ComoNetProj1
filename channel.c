@@ -12,7 +12,8 @@
 int Noise(char* buffer, int seed, double probability)
 {
 	/*
-		Receives (char*) buffer, (int) seed, (double) probability, and "flips" every buffer's bit at the given probabilty.
+		Input: (char*) buffer, (int) seed, (double) probability
+		Functionality: "flips" every buffer's bit at the given probabilty.
 		Return value: number of flipped bits.
 	*/
 
