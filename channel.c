@@ -8,49 +8,18 @@
 #include <WinSock2.h>
 #include <math.h>
 #include <stdbool.h>
-#include "C:\Users\datne\OneDrive\Desktop\CCProrojet\Project1\hamming.c"
 
-/*
-void Noise_A(char* buffer, int seed, int probability)
-{
-	int MAX_P = 1 / probability, random, mask = 1;
-	srand(seed);
-
-	for (int i = 0; i < 1500; i++)
-	{
-		mask = 1;
-		for (int j = 0; j < 8; j++)
-		{
-			mask *= 2;
-			random = rand();
-			if ((random % MAX_P) == 0)
-			{
-				if (pow(2, 16) == MAX_P)
-				{
-					if (rand() % 2 == 0)
-					{
-						continue;
-					}
-
-					buffer[i] = buffer[i] ^ mask;
-				}
-			}
-		}
-
-	}
-}
-*/
-
-void Noise_B(char* buffer, int seed, double probability)
+int Noise(char* buffer, int seed, double probability)
 {
 	/*
-		Receives (char*) buffer, (int) seed, (double) probability, and "flips" bits in accordance to the probabilty and the seed
+		Receives (char*) buffer, (int) seed, (double) probability, and "flips" every buffer's bit at the given probabilty.
+		Return value: number of flipped bits.
 	*/
-	
+
 	int MAX_P = 1 / probability;
-	int random, mask = 1;
+	int random, mask = 1, flipped = 0;
 	srand(seed);
-	
+
 	for (int i = 0; i < 1500; i++)
 	{
 		mask = 1;
@@ -68,11 +37,27 @@ void Noise_B(char* buffer, int seed, double probability)
 			if ((random % MAX_P) == 0)
 			{
 				buffer[i] = buffer[i] ^ mask;
+				flipped++;
 			}
 		}
 
 	}
-	return;
+	return flipped;
+}
+
+void checkArgs(int argc, char* argv[])
+{
+	if (argc < 5)
+	{
+		printf("too few arguments\n");
+		exit(1);
+	}
+
+	if (atoi(argv[1]) == 0 || atoi(argv[3]) == 0)
+	{
+		printf("Invalid port\n");
+		exit(1);
+	}
 }
 
 int main(int argc, char* argv[])
@@ -85,6 +70,9 @@ int main(int argc, char* argv[])
 		argv[4] - probability
 		argv[5] - random seed
 	*/
+
+	//Check if the arguments are valid
+	checkArgs(argc, argv);
 
 	unsigned char buffer[BUFF_SIZE + 2] = { 0 };
 	int buffer_len;
@@ -104,21 +92,18 @@ int main(int argc, char* argv[])
 	{
 		printf("Could not create socket : %d", WSAGetLastError());
 	}
-	printf("Socket created.\n");
 
 	if ((client_s = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
 		printf("Could not create socket : %d", WSAGetLastError());
 	}
-	printf("Socket created.\n");
-
 
 	// Filling client information 
 	struct sockaddr_in client_addr, server_addr;
 	client_addr.sin_family = AF_INET;
 	client_addr.sin_port = htons(atoi(argv[1]));
 	client_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	
+
 	// Filling server information 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(atoi(argv[3]));
@@ -130,14 +115,16 @@ int main(int argc, char* argv[])
 		printf("Bind failed with error code : %d", WSAGetLastError());
 		exit(EXIT_FAILURE);
 	}
-	puts("Bind done");
 
 	// Setup timeval variable
 	struct timeval timeout;
 	struct fd_set fds;
-	int  retval, client_addrss_len = sizeof(client_addr), server_addr_len = sizeof(server_addr);
+	int  retval, client_addrss_len = sizeof(client_addr), server_addr_len = sizeof(server_addr), flipped = 0;
 	timeout.tv_sec = 10;
 	timeout.tv_usec = 0;
+
+	char output[200];
+	int size = 0;
 
 	while (1)
 	{
@@ -145,14 +132,16 @@ int main(int argc, char* argv[])
 		FD_ZERO(&fds);
 		FD_SET(client_s, &fds);
 		FD_SET(server_s, &fds);
-	
+
 		//wait for data to be sent by either the client or the server
-		retval = select(max(client_s,server_s) + 1, &fds, NULL, NULL, &timeout);
+		retval = select(max(client_s, server_s) + 1, &fds, NULL, NULL, &timeout);
 
 		if (retval < 0)
 		{//error occured
 
-			// check errno/WSAGetLastError(), call perror(), etc ...
+			// check errno/WSAGetLastError()
+			printf("error occured");
+			exit(1);
 		}
 
 		if (retval == 0)
@@ -167,20 +156,19 @@ int main(int argc, char* argv[])
 			{//Data was recived from the client
 			//we will process it (add noise to it) and send it to the server
 
-				printf("client message received\n");
-				
 				//receive data from client
 				buffer_len = recvfrom(client_s, buffer, BUFF_SIZE + 2, 0, (struct sockaddr*)&client_addr, &client_addrss_len);
-				
-				for (int i = buffer_len; i < BUFF_SIZE ; i++)
+				size += buffer_len;
+
+				for (int i = buffer_len; i < BUFF_SIZE; i++)
 				{
 					buffer[i] = '\0';
 				}
 				//add noise to the data before sending it to the server
-				//Noise_B(buffer, argv[5], probability);
+
+				flipped += Noise(buffer, argv[5], probability);
 
 				//Sending the processed data to the server
-				printf("Sending to server\n");
 				if (sendto(server_s, buffer, buffer_len, 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR)
 				{
 					printf("sendto() failed with error code : %d", WSAGetLastError());
@@ -194,21 +182,20 @@ int main(int argc, char* argv[])
 
 				//receive data from server
 				buffer_len = recvfrom(server_s, buffer, BUFF_SIZE, 0, (struct sockaddr*)&server_addr, &server_addr_len);
-				printf("ack received\n");
-				
+
 				//close connection with the server
 				closesocket(server_s);
 
 				//send Ack to the client
-				strcpy(buffer, "Ack");
-				if (sendto(client_s, buffer, 20 , 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+				if (sendto(client_s, buffer, buffer_len, 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
 				{
 					printf("sendto() failed with error code : %d", WSAGetLastError());
 					exit(EXIT_FAILURE);
 				}
 
-				//===== present the data before finishing execution (?) ==========
-
+				//present the data before finishing execution
+				sprintf(output, "sender: %s \nreceiver: %s \n%d bytes, flipped %d bits\n", inet_ntoa(client_addr.sin_addr), argv[2], size, flipped);
+				write(2, output, strlen(output));
 
 				//close connection with the client
 				closesocket(client_s);
